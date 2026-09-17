@@ -27,10 +27,23 @@ class AnimalTracker:
         """Gibt (ok, box) zurück. Bei ok=False ist das Tracking verloren."""
         if not self.active:
             return False, None
-        ok, box = self.tracker.update(frame)
+        if frame is None or frame.size == 0:
+            self.stop()
+            return False, None
+        if frame.ndim >= 2 and (frame.shape[0] == 0 or frame.shape[1] == 0):
+            self.stop()
+            return False, None
+
+        try:
+            ok, box = self.tracker.update(frame)
+        except cv2.error:
+            self.stop()
+            return False, None
+
         self.frames_since_start += 1
         if not ok:
             self.active = False
+            self.tracker = None
         return ok, tuple(int(v) for v in box) if ok else None
 
     def needs_reclassification(self):

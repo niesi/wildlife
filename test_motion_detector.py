@@ -25,15 +25,26 @@ class MotionDetectorAreaTest(unittest.TestCase):
 
         self.assertEqual(boxes, [])
 
-    def test_overlay_colors_motion_pixels_red(self):
+    def test_overlay_marks_motion_pixels_white(self):
         detector = MotionDetector(min_area=100, max_area=500)
         detector.bg_subtractor = StaticMask()
-        frame = np.zeros((20, 20, 3), dtype=np.uint8)
+        frame = np.zeros((20, 20), dtype=np.uint8)
 
         detector.detect(frame)
         detector.overlay_motion_mask(frame)
 
-        self.assertTrue(np.all(frame == (0, 0, 255)))
+        self.assertTrue(np.all(frame == 255))
+
+    def test_overlay_supports_grayscale_frames(self):
+        detector = MotionDetector(min_area=1, max_area=500)
+        detector.bg_subtractor = StaticMask()
+        frame = np.zeros((20, 20), dtype=np.uint8)
+
+        detector.detect(frame)
+        result = detector.overlay_motion_mask(frame)
+
+        self.assertEqual(result.shape, (20, 20))
+        self.assertTrue(np.all(result == 255))
 
 
 if __name__ == "__main__":

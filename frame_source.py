@@ -14,6 +14,20 @@ import random
 import cv2
 
 
+def to_grayscale(frame):
+    if frame is None:
+        return frame
+    if frame.ndim == 2:
+        return frame
+    if frame.ndim == 3 and frame.shape[2] == 1:
+        return frame[:, :, 0]
+    if frame.ndim == 3 and frame.shape[2] == 3:
+        return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if frame.ndim == 3 and frame.shape[2] == 4:
+        return cv2.cvtColor(frame, cv2.COLOR_BGRA2GRAY)
+    return frame
+
+
 class FrameSource(ABC):
     """Gemeinsame Schnittstelle für alle Bildquellen."""
 
@@ -41,6 +55,8 @@ class VideoFileSource(FrameSource):
         if not ok and self.loop:
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ok, frame = self.cap.read()
+        if ok and frame is not None:
+            frame = to_grayscale(frame)
         return ok, frame
 
     def release(self):
@@ -56,7 +72,10 @@ class WebcamSource(FrameSource):
             raise RuntimeError(f"Webcam mit Index {index} konnte nicht geöffnet werden")
 
     def get_frame(self):
-        return self.cap.read()
+        ok, frame = self.cap.read()
+        if ok and frame is not None:
+            frame = to_grayscale(frame)
+        return ok, frame
 
     def release(self):
         self.cap.release()

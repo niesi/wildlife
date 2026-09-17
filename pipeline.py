@@ -18,7 +18,7 @@ import argparse
 import cv2
 
 from frame_source import create_source
-from motion_detector import MotionDetector
+from motion_detector import MotionDetector, to_grayscale
 from classifier import MockClassifier
 from tracker import AnimalTracker
 
@@ -53,10 +53,11 @@ def run(args):
             if not ok:
                 print("Kein Frame mehr verfügbar, beende.")
                 break
+            frame = to_grayscale(frame)
             frame_count += 1
             boxes = motion.detect(frame) if (not tracker.active or args.show_motion_mask) else []
             if args.show_motion_mask:
-                motion.overlay_motion_mask(frame)
+                frame = motion.overlay_motion_mask(frame)
 
             if tracker.active:
                 ok_track, box = tracker.update(frame)
