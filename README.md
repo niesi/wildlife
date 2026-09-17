@@ -53,6 +53,19 @@ und Tracking arbeiten ausschließlich auf unveränderten Graustufenbildern.
 Nur die Anzeige verwendet eine separate BGR-Kopie: Boxen und Beschriftungen
 bleiben farbig; `--show-motion-mask` zeigt Bewegungspixel in Rot.
 
+Unter dem Video stehen drei getrennte Statuszeilen:
+- **MOTION (blau):** Anzahl der gefilterten Bewegungsregionen oder der Hinweis,
+  dass die Erkennung während des Trackings übersprungen wurde. Boxen: `MOTION #n`.
+- **TRACKER (gelb):** idle, started, tracking, lost oder nach Ablehnung gestoppt.
+  Boxen: `TRACKER: label`.
+- **CLASSIFICATION (MOCK, grün/rot):** letztes Label, Konfidenz und Annahme/Ablehnung.
+  Frische Ergebnisse zeigen die Anzahl klassifizierter Ausschnitte; ältere Ergebnisse
+  sind ausdrücklich mit ihrem Alter in Frames markiert. `CLASSIFY`-Boxen zeigen die
+  tatsächlich klassifizierten Ausschnitte nur auf dem jeweiligen Frame.
+
+Der Klassifikator bleibt ein regelbasierter Mock, kein trainiertes KI-Modell.
+Die Anzeige löst keine zusätzlichen Klassifikationen oder Bewegungserkennungen aus.
+
 Taste `q` beendet die Anzeige.
 
 ## Struktur

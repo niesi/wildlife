@@ -42,6 +42,27 @@ def draw_result(frame, box, label, confidence, color):
     cv2.putText(frame, text, (x, max(0, y - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 
+MOTION_COLOR = (255, 160, 0)
+TRACKER_COLOR = (0, 200, 255)
+ACCEPT_COLOR = (0, 220, 0)
+REJECT_COLOR = (0, 0, 220)
+
+
+def draw_stage_status(frame, motion_status, tracker_status, classification_status, classification_color):
+    """Status unterhalb des Bildes, ohne die Szene oder Verarbeitung zu verändern."""
+    rows = [
+        (f"MOTION: {motion_status}", MOTION_COLOR),
+        (f"TRACKER: {tracker_status}", TRACKER_COLOR),
+        (f"CLASSIFICATION (MOCK): {classification_status}", classification_color),
+    ]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    width = max(frame.shape[1], max(cv2.getTextSize(text, font, 0.55, 1)[0][0] + 24 for text, _ in rows))
+    display = cv2.copyMakeBorder(frame, 0, 96, 0, width - frame.shape[1], cv2.BORDER_CONSTANT, value=(20, 20, 20))
+    for index, (text, color) in enumerate(rows):
+        cv2.putText(display, text, (12, frame.shape[0] + 24 + index * 30), font, 0.55, color, 1, cv2.LINE_AA)
+    return display
+
+
 def playback_delay_ms(fps, frame_started):
     """Restliche Framezeit; mindestens 1 ms für die GUI-Ereignisse."""
     if fps is None:
@@ -58,6 +79,8 @@ def run(args):
 
     playback_fps = source.fps if args.source == "video_file" else None
     frame_count = 0
+    last_classification = None
+    classification_frame = 0
     try:
         while True:
             frame_started = time.perf_counter()
@@ -67,27 +90,43 @@ def run(args):
                 break
             frame = to_grayscale(frame)
             frame_count += 1
-            boxes = motion.detect(frame) if (not tracker.active or args.show_motion_mask) else []
+            motion_ran = not tracker.active or args.show_motion_mask
+            boxes = motion.detect(frame) if motion_ran else []
+            motion_status = f"{len(boxes)} regions" if motion_ran else "skipped while tracking"
+            tracker_status = "idle"
+            classified_count = 0
             display_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
             if args.show_motion_mask:
                 display_frame = motion.overlay_motion_mask(display_frame)
+            for index, motion_box in enumerate(boxes, 1):
+                draw_result(display_frame, motion_box, f"MOTION #{index}", None, MOTION_COLOR)
 
             if tracker.active:
                 ok_track, box = tracker.update(frame)
                 if ok_track:
-                    draw_result(display_frame, box, tracker.label, None, (0, 200, 255))
+                    tracker_status = f"tracking {tracker.label}"
+                    draw_result(display_frame, box, f"TRACKER: {tracker.label}", None, TRACKER_COLOR)
                     if tracker.needs_reclassification():
                         x0, y0, x1, y1 = expand_box(box, frame.shape)
                         crop = frame[y0:y1, x0:x1]
                         if crop.size > 0:
                             result = classifier.classify(crop)
+                            last_classification = result
+                            classification_frame = frame_count
+                            classified_count += 1
+                            color = ACCEPT_COLOR if result.is_animal else REJECT_COLOR
+                            draw_result(display_frame, (x0, y0, x1 - x0, y1 - y0),
+                                        f"CLASSIFY: {result.label}", result.confidence, color)
                             if result.is_animal:
                                 tracker.label = result.label
+                                tracker_status = f"tracking {result.label} (revalidated)"
                                 tracker.frames_since_start = 0
                             else:
                                 tracker.stop()
+                                tracker_status = "stopped: classification rejected"
                 else:
                     tracker.stop()
+                    tracker_status = "lost"
 
             if not tracker.active:
                 for box in boxes:
@@ -96,12 +135,29 @@ def run(args):
                     if crop.size == 0:
                         continue
                     result = classifier.classify(crop)
-                    color = (0, 220, 0) if result.is_animal else (0, 0, 220)
-                    draw_result(display_frame, box, result.label, result.confidence, color)
+                    last_classification = result
+                    classification_frame = frame_count
+                    classified_count += 1
+                    color = ACCEPT_COLOR if result.is_animal else REJECT_COLOR
+                    draw_result(display_frame, (x0, y0, x1 - x0, y1 - y0),
+                                f"CLASSIFY: {result.label}", result.confidence, color)
                     if result.is_animal:
                         tracker.start(frame, box, result.label)
+                        tracker_status = f"started {result.label}"
+                        draw_result(display_frame, box, f"TRACKER: {result.label}", None, TRACKER_COLOR)
                         break  # nur ein Objekt gleichzeitig verfolgen (Start)
 
+            classification_color = (180, 180, 180)
+            classification_status = "not run yet"
+            if last_classification is not None:
+                result = last_classification
+                classification_color = ACCEPT_COLOR if result.is_animal else REJECT_COLOR
+                age = frame_count - classification_frame
+                freshness = f"fresh ({classified_count} crops, last result)" if age == 0 else f"last result: {age} frames ago"
+                verdict = "accepted" if result.is_animal else "rejected"
+                classification_status = f"{result.label} {result.confidence:.2f} | {verdict} | {freshness}"
+            display_frame = draw_stage_status(display_frame, motion_status, tracker_status,
+                                              classification_status, classification_color)
             cv2.imshow("Wildlife Pipeline (Prototyp)", display_frame)
             delay = playback_delay_ms(playback_fps, frame_started)
             if cv2.waitKey(delay) & 0xFF == ord("q"):
