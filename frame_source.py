@@ -10,6 +10,7 @@ Tupel liefert.
 """
 
 from abc import ABC, abstractmethod
+import math
 import random
 import cv2
 
@@ -33,7 +34,7 @@ class FrameSource(ABC):
 
     @abstractmethod
     def get_frame(self):
-        """Liefert (ok: bool, frame: np.ndarray | None)."""
+        """Liefert (ok: bool, frame: zweidimensionales Graubild | None)."""
         raise NotImplementedError
 
     def release(self):
@@ -49,6 +50,8 @@ class VideoFileSource(FrameSource):
         self.cap = cv2.VideoCapture(path)
         if not self.cap.isOpened():
             raise FileNotFoundError(f"Videodatei konnte nicht geöffnet werden: {path}")
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.fps = fps if math.isfinite(fps) and fps > 0 else 30.0
 
     def get_frame(self):
         ok, frame = self.cap.read()
@@ -229,7 +232,7 @@ class SyntheticMotionSource(FrameSource):
         frame = self._background()
         self._composite(frame, self._sprite_frame())
         self.frame_index += 1
-        return True, frame
+        return True, to_grayscale(frame)
 
 
 def create_source(kind: str, **kwargs) -> FrameSource:

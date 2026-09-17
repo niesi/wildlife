@@ -33,6 +33,13 @@ Mit einer Videodatei (z.B. heruntergeladener Wildlife-Kamerafallen-Clip):
 python pipeline.py --source video_file --path pfad/zum/clip.mp4
 ```
 
+Die Videowiedergabe verwendet die FPS-Metadaten der Datei und berücksichtigt
+Dekodierung und Verarbeitung bei der Wartezeit. Bei ungültigen FPS-Metadaten
+werden 30 FPS verwendet. Ist die Verarbeitung langsamer als das Frameintervall,
+läuft die Wiedergabe langsamer; Frames werden nicht übersprungen. Die Zeitsteuerung
+ist durch die GUI-/Betriebssystem-Timer begrenzt und verwendet bei Videos mit
+variabler Framerate die gemeldete nominale Framerate.
+
 Bewegungsbereiche werden zwischen `--min-area` und `--max-area` akzeptiert.
 Große Hintergrundänderungen oberhalb von `--max-area` werden nicht getrackt.
 
@@ -40,6 +47,11 @@ Mit der Webcam am PC:
 ```bash
 python pipeline.py --source webcam --index 0
 ```
+
+Alle Bildquellen liefern Graustufenbilder. Bewegungserkennung, Klassifikation
+und Tracking arbeiten ausschließlich auf unveränderten Graustufenbildern.
+Nur die Anzeige verwendet eine separate BGR-Kopie: Boxen und Beschriftungen
+bleiben farbig; `--show-motion-mask` zeigt Bewegungspixel in Rot.
 
 Taste `q` beendet die Anzeige.
 

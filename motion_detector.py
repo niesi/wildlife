@@ -67,11 +67,15 @@ class MotionDetector:
         return boxes
 
     def overlay_motion_mask(self, frame, alpha=1.0):
-        """Mark detected motion pixels in the grayscale image."""
+        """Rote Bewegungsmaske auf einer BGR-Kopie; Eingabe bleibt unverändert."""
+        if frame.ndim == 3 and frame.shape[2] == 3:
+            display = frame.copy()
+        else:
+            display = cv2.cvtColor(to_grayscale(frame), cv2.COLOR_GRAY2BGR)
         if self.last_mask is None:
-            return frame
+            return display
 
-        grayscale = to_grayscale(frame)
         active = self.last_mask > 0
-        grayscale[active] = 255
-        return grayscale
+        overlay = display.copy()
+        overlay[active] = (0, 0, 255)
+        return cv2.addWeighted(overlay, alpha, display, 1.0 - alpha, 0)
