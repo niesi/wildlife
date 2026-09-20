@@ -32,7 +32,7 @@ class MotionDetector:
         self._frames_seen = 0
         self.last_mask = None
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=history, varThreshold=var_threshold, detectShadows=False
+            history=history, varThreshold=var_threshold, detectShadows=True #False
         )
 
     @property
@@ -63,9 +63,9 @@ class MotionDetector:
         """
         grayscale = to_grayscale(frame)
         factor, small = self._scale_factor(grayscale)
-        mask = self.bg_subtractor.apply(small)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, None, iterations=2)
-        mask = cv2.dilate(mask, None, iterations=1)
+        mask = self.bg_subtractor.apply(small, learningRate=0.01)
+        #mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, None, iterations=1)
+        #mask = cv2.dilate(mask, None, iterations=1)
         self.last_mask = mask if factor == 1.0 else cv2.resize(
             mask, (grayscale.shape[1], grayscale.shape[0]), interpolation=cv2.INTER_NEAREST
         )

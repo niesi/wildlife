@@ -12,6 +12,6 @@
     "max_area": 50000,
     "min_animal_area": 1500,
     "reclassify_every": 60,
-    "downscale_width": 640
+    "downscale_width": 320
   }
 }
