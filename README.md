@@ -79,6 +79,8 @@ Taste `q` beendet die Anzeige.
 - `tracker.py` – KCF-Tracking nach bestätigter Klassifikation, mit
   periodischer Re-Klassifikation.
 - `pipeline.py` – verbindet alles, Kommandozeilen-Einstiegspunkt.
+- `tests/` – Unit-Tests für Pipeline und Turm, gestartet mit
+  `python -m unittest discover` aus dem Projektverzeichnis.
 
 ## Nächste Schritte
 
@@ -91,3 +93,26 @@ Taste `q` beendet die Anzeige.
    `pipeline.py` unverändert lassen (nur den Classifier austauschen).
 4. Sobald die CSI-Kamera verfügbar ist: `CsiFrameSource` in
    `frame_source.py` ergänzen, restliche Pipeline bleibt unverändert.
+
+## Water turret (cat deterrent)
+
+The repository also contains the software structure for an automatic water
+turret that aims at cats in the garden. The decision layer is implemented and
+unit tested; camera, tracking, servo and pump wiring follow in the next phase.
+
+- `state_machine.py` – states, events, transitions and state timeouts.
+- `safety.py` – arming, spray zone, cooldown, spray budgets, time window,
+  emergency stop.
+- `turret_config.py` – all parameters as dataclasses, readable and writable as
+  UTF-8 JSON.
+- `tests/test_state_machine.py`, `tests/test_safety.py`, `tests/test_turret_config.py` – 87 tests.
+- `TURRET.md` – architecture, state diagram, transition table, safety rules and
+  the planned interfaces of the next phase.
+
+```bash
+python state_machine.py        # prints the transition and timeout tables
+python -m unittest discover -v # pipeline tests + turret tests
+```
+
+The turret is disarmed by default: it neither aims nor sprays until it is armed
+on purpose.

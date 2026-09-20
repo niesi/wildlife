@@ -49,6 +49,33 @@ class MockClassifier(Classifier):
         return ClassificationResult(label=label, confidence=round(confidence, 2), is_animal=is_animal)
 
 
+class MockCatClassifier(Classifier):
+    """
+    Placeholder cat classifier for development without a trained model: it
+    only looks at the crop size, so the whole turret stack can be exercised.
+
+    ``is_animal`` means "the requested target class was found". The labels are
+    English ("cat"/"not_cat") because the turret layer uses the label set from
+    ``turret_config.SafetyLimits.target_labels``.
+    """
+
+    def __init__(self, min_area_for_cat=1500, label="cat", negative_label="not_cat"):
+        self.min_area_for_cat = min_area_for_cat
+        self.label = label
+        self.negative_label = negative_label
+
+    def classify(self, crop) -> ClassificationResult:
+        h, w = crop.shape[:2]
+        area = h * w
+        is_cat = area >= self.min_area_for_cat
+        confidence = min(0.99, area / (self.min_area_for_cat * 3))
+        return ClassificationResult(
+            label=self.label if is_cat else self.negative_label,
+            confidence=round(confidence, 2),
+            is_animal=is_cat,
+        )
+
+
 class RknnClassifier(Classifier):
     """
     Platzhalter für die spätere NPU-Klassifikation auf dem RV1106.
