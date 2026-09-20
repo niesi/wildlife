@@ -1,6 +1,6 @@
 """
-Leichtgewichtiges Tracking eines bestätigten Tiers, um nicht bei
-jedem Frame erneut klassifizieren zu müssen.
+Lightweight tracking of a confirmed animal, so classification does not
+have to run again on every frame.
 """
 
 import cv2
@@ -16,7 +16,7 @@ class AnimalTracker:
 
     def start(self, frame, box, label):
         x, y, w, h = box
-        # CSRT ist genauer, KCF schneller - je nach Rechenleistung wählen
+        # CSRT is more accurate, KCF faster - pick based on available compute
         self.tracker = cv2.legacy.TrackerKCF_create() if hasattr(cv2, "legacy") else cv2.TrackerKCF_create()
         self.tracker.init(frame, (x, y, w, h))
         self.active = True
@@ -24,7 +24,7 @@ class AnimalTracker:
         self.label = label
 
     def update(self, frame):
-        """Gibt (ok, box) zurück. Bei ok=False ist das Tracking verloren."""
+        """Return (ok, box). With ok=False the tracking is lost."""
         if not self.active:
             return False, None
         if frame is None or frame.size == 0:

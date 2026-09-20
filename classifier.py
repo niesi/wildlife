@@ -1,16 +1,15 @@
 """
-Klassifikations-Schnittstelle für die einmalige KI-Bewertung eines
-bewegten Bildausschnitts.
+Classification interface for the one-shot AI assessment of a moving
+image crop.
 
-Aktuell: MockClassifier, der ohne echtes Modell arbeitet (rein
-regelbasiert, z.B. nach Fläche/Seitenverhältnis), damit die
-gesamte Pipeline schon jetzt end-to-end mit simulierten Bildern
-lauffähig ist.
+Currently: MockClassifier, which works without a real model (purely
+rule-based, e.g. by area/aspect ratio) so the whole app already runs
+end-to-end with simulated images.
 
-Später: RknnClassifier mit derselben Schnittstelle (classify(crop)
--> ClassificationResult), die intern rknn-toolkit-lite2 nutzt, um
-das auf dem RV1106 konvertierte .rknn-Modell auszuführen. Der Rest
-der Pipeline (pipeline.py) muss dafür nicht verändert werden.
+Later: RknnClassifier with the same interface (classify(crop)
+-> ClassificationResult), using rknn-toolkit-lite2 internally to run
+the .rknn model converted for the RV1106. The rest of the app must
+not change for that.
 """
 
 from abc import ABC, abstractmethod
@@ -32,9 +31,9 @@ class Classifier(ABC):
 
 class MockClassifier(Classifier):
     """
-    Platzhalter-Klassifikator für die Entwicklung ohne trainiertes Modell.
-    Klassifiziert rein nach Bildausschnitt-Größe, damit der Rest der
-    Pipeline (Tracking, Anzeige) end-to-end getestet werden kann.
+    Placeholder classifier for development without a trained model.
+    Classifies purely by crop size, so the rest of the app (tracking,
+    display) can be tested end-to-end.
     """
 
     def __init__(self, min_area_for_animal=1500):
@@ -45,18 +44,19 @@ class MockClassifier(Classifier):
         area = h * w
         is_animal = area >= self.min_area_for_animal
         confidence = min(0.99, area / (self.min_area_for_animal * 3))
-        label = "tier" if is_animal else "kein_tier"
+        label = "animal" if is_animal else "not_animal"
         return ClassificationResult(label=label, confidence=round(confidence, 2), is_animal=is_animal)
 
 
 class MockCatClassifier(Classifier):
     """
     Placeholder cat classifier for development without a trained model: it
-    only looks at the crop size, so the whole turret stack can be exercised.
+    only looks at the crop size, so the whole perception stack can be
+    exercised.
 
-    ``is_animal`` means "the requested target class was found". The labels are
-    English ("cat"/"not_cat") because the turret layer uses the label set from
-    ``turret_config.SafetyLimits.target_labels``.
+    ``is_animal`` means "the requested target class was found". The labels
+    are English ("cat"/"not_cat") because the target detector matches the
+    label against its target labels.
     """
 
     def __init__(self, min_area_for_cat=1500, label="cat", negative_label="not_cat"):
@@ -78,17 +78,17 @@ class MockCatClassifier(Classifier):
 
 class RknnClassifier(Classifier):
     """
-    Platzhalter für die spätere NPU-Klassifikation auf dem RV1106.
-    Noch nicht implementiert - Struktur zeigt, wie der Austausch
-    später aussehen wird, sobald ein .rknn-Modell vorliegt.
+    Placeholder for the later NPU classification on the RV1106.
+    Not implemented yet - the structure shows how the swap will look
+    once a .rknn model is available.
     """
 
     def __init__(self, model_path: str, labels: list[str]):
         self.model_path = model_path
         self.labels = labels
         raise NotImplementedError(
-            "RknnClassifier wird implementiert, sobald ein trainiertes "
-            "und mit RKNN-Toolkit2 konvertiertes Modell vorliegt."
+            "RknnClassifier will be implemented once a trained model "
+            "converted with RKNN-Toolkit2 is available."
         )
 
     def classify(self, crop) -> ClassificationResult:

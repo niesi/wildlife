@@ -24,7 +24,7 @@ class MockClassifierAreaTest(unittest.TestCase):
         result = classifier.classify(np.zeros((25, 20, 3), dtype=np.uint8))
 
         self.assertTrue(result.is_animal)
-        self.assertEqual(result.label, "tier")
+        self.assertEqual(result.label, "animal")
 
 
 if __name__ == "__main__":

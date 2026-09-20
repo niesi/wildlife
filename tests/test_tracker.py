@@ -14,7 +14,7 @@ class AnimalTrackerTest(unittest.TestCase):
     def test_update_ignores_empty_frame_and_returns_false(self):
         tracker = AnimalTracker()
         frame = np.zeros((20, 20, 3), dtype=np.uint8)
-        tracker.start(frame, (0, 0, 10, 10), "tier")
+        tracker.start(frame, (0, 0, 10, 10), "animal")
 
         empty_frame = np.empty((0, 0, 3), dtype=np.uint8)
         ok, box = tracker.update(empty_frame)

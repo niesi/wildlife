@@ -5,19 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
+            "name": "Python: turret.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "turret.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal",
-            "args": [
-                "--show-motion-mask",
-                "--source",
-                "video_file",
-                "--path",
-                "video/youtube.mp4"
-
-            ]
+            "console": "integratedTerminal"
         }
     ]
 }

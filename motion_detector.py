@@ -1,6 +1,6 @@
 """
-Traditionelle Bewegungserkennung per Background Subtraction (MOG2).
-Liefert Bounding-Boxes der bewegten Bereiche, gefiltert nach Mindestfläche.
+Classical motion detection via background subtraction (MOG2).
+Returns bounding boxes of the moving regions, filtered by minimum area.
 """
 
 import cv2
@@ -22,19 +22,32 @@ def to_grayscale(frame):
 
 class MotionDetector:
     def __init__(
-        self, min_area=1200, max_area=50000, downscale_width=320, history=500, var_threshold=10
+        self, min_area=1200, max_area=50000, downscale_width=320, history=500,
+        var_threshold=16, warmup_frames=None
     ):
         self.min_area = min_area
         self.max_area = max_area
         self.downscale_width = downscale_width
+        self.warmup_frames = history if warmup_frames is None else int(warmup_frames)
+        self._frames_seen = 0
         self.last_mask = None
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
             history=history, varThreshold=var_threshold, detectShadows=False
         )
 
+    @property
+    def frames_seen(self) -> int:
+        """Frames the background model has been fed so far."""
+        return self._frames_seen
+
+    @property
+    def warming_up(self) -> bool:
+        """True while the background model is still being trained."""
+        return self._frames_seen < self.warmup_frames
+
     def _scale_factor(self, frame):
         h, w = frame.shape[:2]
-        if w <= self.downscale_width:
+        if self.downscale_width <= 0 or w <= self.downscale_width:
             return 1.0, frame
         factor = self.downscale_width / w
         small = cv2.resize(frame, (self.downscale_width, int(h * factor)))
@@ -42,8 +55,11 @@ class MotionDetector:
 
     def detect(self, frame):
         """
-        Gibt eine Liste von Bounding-Boxes (x, y, w, h) im Koordinatensystem
-        des Original-Frames zurück, gefiltert nach Mindestfläche.
+        Returns a list of bounding boxes (x, y, w, h) in the coordinate
+        system of the original frame, filtered by minimum area.
+
+        During the warm-up phase (the first ``warmup_frames`` calls) the
+        background model is trained but no boxes are returned.
         """
         grayscale = to_grayscale(frame)
         factor, small = self._scale_factor(grayscale)
@@ -53,6 +69,10 @@ class MotionDetector:
         self.last_mask = mask if factor == 1.0 else cv2.resize(
             mask, (grayscale.shape[1], grayscale.shape[0]), interpolation=cv2.INTER_NEAREST
         )
+
+        self._frames_seen += 1
+        if self.warming_up:
+            return []
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -67,7 +87,7 @@ class MotionDetector:
         return boxes
 
     def overlay_motion_mask(self, frame, alpha=1.0):
-        """Rote Bewegungsmaske auf einer BGR-Kopie; Eingabe bleibt unverändert."""
+        """Red motion mask on a BGR copy; the input frame stays unchanged."""
         if frame.ndim == 3 and frame.shape[2] == 3:
             display = frame.copy()
         else:

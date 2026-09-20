@@ -1,83 +1,14 @@
 """
-Central parameters of the water turret.
+Central configuration of the turret app.
 
-Data only: no logic, no camera, no hardware. Later phases read the same
-objects, so thresholds can be tuned - and loaded from JSON - without
-touching code.
+Data only: no logic, no camera, no hardware. The app reads a single
+``config.json``; it never writes it (edit by hand). Unknown keys are
+rejected so typos in the JSON do not fail silently.
 """
 
 from dataclasses import dataclass, field, fields
 import json
 from pathlib import Path
-
-
-@dataclass
-class StateTimeouts:
-    """Nominal durations of the timed states (seconds)."""
-
-    aim_s: float = 2.0             # AIMING -> AIM_TIMEOUT
-    spray_s: float = 0.3           # WATERING -> SPRAY_FINISHED
-    verify_s: float = 5.0          # VERIFYING -> VERIFY_TIMEOUT
-    target_confirm_s: float = 1.0  # TARGET_FOUND -> TARGET_LOST
-
-    def __post_init__(self):
-        for name in ("aim_s", "spray_s", "verify_s", "target_confirm_s"):
-            value = getattr(self, name)
-            if value <= 0:
-                raise ValueError(f"{name} must be positive, got {value!r}")
-
-
-@dataclass
-class SafetyLimits:
-    """Hard limits enforced by safety.SafetyGuard."""
-
-    armed: bool = False                                     # never armed by default
-    target_labels: tuple = ("cat",)                          # only this class may be sprayed
-    min_confidence: float = 0.6                              # classifier confidence floor
-    confirm_frames: int = 3                                  # frames needed for confirmation
-    spray_zone: tuple = (0.05, 0.05, 0.95, 0.95)             # x0, y0, x1, y1 relative to the frame
-    min_target_height: float = 0.02                           # closer/bigger = unsafe
-    max_target_height: float = 0.9                            # farther/smaller = useless
-    cooldown_s: float = 3.0                                   # pause between two sprays
-    max_spray_s: float = 0.4                                  # hard cap per spray burst
-    max_sprays_per_target: int = 2                            # budget for one cat
-    max_sprays_per_hour: int = 12                             # rolling one hour window
-    allowed_hours: tuple | None = (6, 22)                     # local time, end exclusive
-    frame_timeout_s: float = 1.0                              # older frame = no spraying
-
-    def __post_init__(self):
-        self.target_labels = tuple(self.target_labels)
-        self.spray_zone = tuple(float(v) for v in self.spray_zone)
-        if self.allowed_hours is not None:
-            self.allowed_hours = tuple(int(v) for v in self.allowed_hours)
-
-        if not self.target_labels:
-            raise ValueError("target_labels must not be empty")
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError(f"min_confidence must be within 0..1, got {self.min_confidence!r}")
-        if self.confirm_frames < 1:
-            raise ValueError(f"confirm_frames must be at least 1, got {self.confirm_frames!r}")
-        if len(self.spray_zone) != 4:
-            raise ValueError("spray_zone must contain x0, y0, x1, y1")
-        x0, y0, x1, y1 = self.spray_zone
-        if not (0.0 <= x0 < x1 <= 1.0 and 0.0 <= y0 < y1 <= 1.0):
-            raise ValueError(f"spray_zone must be ordered within 0..1, got {self.spray_zone!r}")
-        if not 0.0 <= self.min_target_height < self.max_target_height <= 1.0:
-            raise ValueError("min_target_height must be below max_target_height within 0..1")
-        if self.cooldown_s < 0:
-            raise ValueError(f"cooldown_s must not be negative, got {self.cooldown_s!r}")
-        if self.max_spray_s <= 0:
-            raise ValueError(f"max_spray_s must be positive, got {self.max_spray_s!r}")
-        if self.max_sprays_per_target < 1:
-            raise ValueError(f"max_sprays_per_target must be at least 1, got {self.max_sprays_per_target!r}")
-        if self.max_sprays_per_hour < 1:
-            raise ValueError(f"max_sprays_per_hour must be at least 1, got {self.max_sprays_per_hour!r}")
-        if self.allowed_hours is not None:
-            start, end = self.allowed_hours
-            if not (0 <= start < end <= 24):
-                raise ValueError(f"allowed_hours must be (start, end) with 0 <= start < end <= 24, got {self.allowed_hours!r}")
-        if self.frame_timeout_s <= 0:
-            raise ValueError(f"frame_timeout_s must be positive, got {self.frame_timeout_s!r}")
 
 
 def reject_unknown_keys(section: str, data: dict, dataclass_type) -> None:
@@ -91,65 +22,89 @@ def reject_unknown_keys(section: str, data: dict, dataclass_type) -> None:
 
 
 @dataclass
-class TurretConfig:
-    """Everything the controller needs to run the turret."""
+class VideoConfig:
+    """Which frames to process and where they come from."""
 
-    state: StateTimeouts = field(default_factory=StateTimeouts)
-    safety: SafetyLimits = field(default_factory=SafetyLimits)
+    source: str = "synthetic"          # video_file | webcam | synthetic
+    path: str = None                   # video file path (source="video_file")
+    webcam_index: int = 0              # camera index (source="webcam")
+    sprite: str = None                 # transparent PNG/JPG (source="synthetic")
+    loop: bool = True                  # restart video_file at the end
+    show_motion: bool = True           # tint detected motion pixels red
 
     def __post_init__(self):
-        if self.state.spray_s > self.safety.max_spray_s:
-            raise ValueError(
-                "state.spray_s must not exceed safety.max_spray_s "
-                f"({self.state.spray_s!r} > {self.safety.max_spray_s!r})"
-            )
+        if self.source not in ("video_file", "webcam", "synthetic"):
+            raise ValueError(f"video.source must be video_file, webcam or synthetic, got {self.source!r}")
+        if self.source == "video_file" and not self.path:
+            raise ValueError("video.path is required when video.source is 'video_file'")
 
     def to_dict(self) -> dict:
         return {
-            "state": {
-                "aim_s": self.state.aim_s,
-                "spray_s": self.state.spray_s,
-                "verify_s": self.state.verify_s,
-                "target_confirm_s": self.state.target_confirm_s,
-            },
-            "safety": {
-                "armed": self.safety.armed,
-                "target_labels": list(self.safety.target_labels),
-                "min_confidence": self.safety.min_confidence,
-                "confirm_frames": self.safety.confirm_frames,
-                "spray_zone": list(self.safety.spray_zone),
-                "min_target_height": self.safety.min_target_height,
-                "max_target_height": self.safety.max_target_height,
-                "cooldown_s": self.safety.cooldown_s,
-                "max_spray_s": self.safety.max_spray_s,
-                "max_sprays_per_target": self.safety.max_sprays_per_target,
-                "max_sprays_per_hour": self.safety.max_sprays_per_hour,
-                "allowed_hours": None if self.safety.allowed_hours is None else list(self.safety.allowed_hours),
-                "frame_timeout_s": self.safety.frame_timeout_s,
-            },
+            "source": self.source,
+            "path": self.path,
+            "webcam_index": self.webcam_index,
+            "sprite": self.sprite,
+            "loop": self.loop,
+            "show_motion": self.show_motion,
         }
 
+
+@dataclass
+class PerceptionConfig:
+    """Motion detection, classification and tracking thresholds."""
+
+    min_area: int = 1200               # smallest accepted motion region (px)
+    max_area: int = 50000              # largest accepted motion region (px)
+    min_animal_area: int = 1500        # crop area the mock classifier accepts
+    reclassify_every: int = 60         # tracker re-classification interval (frames)
+    downscale_width: int = 320         # motion is detected at this width (0 = full resolution)
+
+    def __post_init__(self):
+        for name in ("min_area", "max_area", "min_animal_area"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"perception.{name} must be positive, got {getattr(self, name)!r}")
+        if self.min_area > self.max_area:
+            raise ValueError(f"perception.min_area must not exceed max_area ({self.min_area!r} > {self.max_area!r})")
+        if self.reclassify_every < 1:
+            raise ValueError(f"perception.reclassify_every must be at least 1, got {self.reclassify_every!r}")
+        if self.downscale_width < 0:
+            raise ValueError(f"perception.downscale_width must not be negative, got {self.downscale_width!r}")
+
+    def to_dict(self) -> dict:
+        return {
+            "min_area": self.min_area,
+            "max_area": self.max_area,
+            "min_animal_area": self.min_animal_area,
+            "reclassify_every": self.reclassify_every,
+            "downscale_width": self.downscale_width,
+        }
+
+
+@dataclass
+class AppConfig:
+    """Everything the turret app needs: video input and perception."""
+
+    video: VideoConfig = field(default_factory=VideoConfig)
+    perception: PerceptionConfig = field(default_factory=PerceptionConfig)
+
+    def to_dict(self) -> dict:
+        return {"video": self.video.to_dict(), "perception": self.perception.to_dict()}
+
     @classmethod
-    def from_dict(cls, data: dict) -> "TurretConfig":
+    def from_dict(cls, data: dict) -> "AppConfig":
         """Build a config from a dict; unknown keys raise ValueError."""
         if not isinstance(data, dict):
             raise ValueError(f"config must be an object, got {type(data).__name__}")
-        unknown = sorted(set(data) - {"state", "safety"})
+        unknown = sorted(set(data) - {"video", "perception"})
         if unknown:
             raise ValueError(f"unknown config keys: {', '.join(unknown)}")
-        state_data = data.get("state", {})
-        safety_data = data.get("safety", {})
-        reject_unknown_keys("state", state_data, StateTimeouts)
-        reject_unknown_keys("safety", safety_data, SafetyLimits)
-        return cls(state=StateTimeouts(**state_data), safety=SafetyLimits(**safety_data))
-
-    def save(self, path) -> Path:
-        """Write the config as UTF-8 JSON and return the path."""
-        path = Path(path)
-        path.write_text(json.dumps(self.to_dict(), indent=2) + "\n", encoding="utf-8")
-        return path
+        video_data = data.get("video", {})
+        perception_data = data.get("perception", {})
+        reject_unknown_keys("video", video_data, VideoConfig)
+        reject_unknown_keys("perception", perception_data, PerceptionConfig)
+        return cls(video=VideoConfig(**video_data), perception=PerceptionConfig(**perception_data))
 
     @classmethod
-    def load(cls, path) -> "TurretConfig":
+    def load(cls, path) -> "AppConfig":
         """Read a config from a UTF-8 JSON file (json.JSONDecodeError on bad input)."""
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))

@@ -1,0 +1,14 @@
+{
+  "pan_center": 0.0,
+  "tilt_center": 0.0,
+  "pan_limits": [-90.0, 90.0],
+  "tilt_limits": [-45.0, 45.0],
+  "deg_per_s": 60.0,
+  "hfov_deg": 60.0,
+  "vfov_deg": 36.0,
+  "aim_tolerance_px": 24.0,
+  "settle_frames": 3,
+  "warmup_frames": 30,
+  "created": "",
+  "notes": "default calibration - edit after measuring the real hardware"
+}

@@ -23,12 +23,37 @@ class MotionDetectorAreaTest(unittest.TestCase):
         self.assertEqual(detector.max_area, 500)
 
     def test_rejects_full_frame_foreground_region(self):
-        detector = MotionDetector(min_area=100, max_area=500, downscale_width=100)
+        detector = MotionDetector(min_area=100, max_area=500, downscale_width=100, warmup_frames=0)
         detector.bg_subtractor = StaticMask()
 
         boxes = detector.detect(np.zeros((100, 100, 3), dtype=np.uint8))
 
         self.assertEqual(boxes, [])
+
+    def test_downscale_width_zero_or_negative_runs_at_full_resolution(self):
+        # Static full-frame mask: with max_area above the frame size the whole
+        # frame is one box, in full-resolution coordinates.
+        frame = np.zeros((40, 80, 3), dtype=np.uint8)
+        for downscale_width in (0, -1):
+            detector = MotionDetector(min_area=10, max_area=5000, downscale_width=downscale_width,
+                                      warmup_frames=0)
+            detector.bg_subtractor = StaticMask()
+
+            boxes = detector.detect(frame)
+
+            self.assertEqual(detector.last_mask.shape, (40, 80))
+            self.assertEqual(boxes, [(0, 0, 80, 40)])
+
+    def test_detect_suppresses_boxes_until_warmup_is_done(self):
+        detector = MotionDetector(min_area=10, max_area=5000, warmup_frames=3)
+        detector.bg_subtractor = StaticMask()
+        frame = np.zeros((40, 80, 3), dtype=np.uint8)
+
+        counts = [len(detector.detect(frame)) for _ in range(5)]
+
+        self.assertEqual(counts, [0, 0, 1, 1, 1])
+        self.assertFalse(detector.warming_up)
+        self.assertEqual(detector.frames_seen, 5)
 
     def test_overlay_marks_motion_pixels_red_without_changing_input(self):
         detector = MotionDetector(min_area=100, max_area=500)

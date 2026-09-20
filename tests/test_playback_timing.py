@@ -1,4 +1,4 @@
-"""Standalone FPS checks: run directly with Python (no camera needed)."""
+﻿"""Standalone FPS checks: run directly with Python (no camera needed)."""
 import sys
 from pathlib import Path
 
@@ -10,7 +10,7 @@ from unittest.mock import patch
 import cv2
 
 from frame_source import VideoFileSource
-from pipeline import playback_delay_ms
+from turret import playback_delay_ms
 
 
 class PlaybackTimingTest(unittest.TestCase):
@@ -35,16 +35,16 @@ class PlaybackTimingTest(unittest.TestCase):
 
     def test_delay_accounts_for_processing(self):
         # Exactly representable times avoid rounding at a millisecond boundary.
-        with patch("pipeline.time.perf_counter", return_value=10.015625):
+        with patch("turret.time.perf_counter", return_value=10.015625):
             self.assertEqual(playback_delay_ms(25.0, 10.0), 25)
 
     def test_full_frame_interval(self):
-        with patch("pipeline.time.perf_counter", return_value=10.0):
+        with patch("turret.time.perf_counter", return_value=10.0):
             self.assertEqual(playback_delay_ms(25.0, 10.0), 40)
             self.assertEqual(playback_delay_ms(29.97, 10.0), 34)
 
     def test_slow_processing_still_pumps_gui(self):
-        with patch("pipeline.time.perf_counter", return_value=10.125):
+        with patch("turret.time.perf_counter", return_value=10.125):
             self.assertEqual(playback_delay_ms(25.0, 10.0), 1)
 
     def test_non_video_sources_keep_existing_delay(self):

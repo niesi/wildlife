@@ -1,12 +1,11 @@
 """
-Austauschbare Bildquellen für die Pipeline.
+Interchangeable frame sources for the app.
 
-Aktuell: Videodatei oder Webcam (für Entwicklung ohne Hardware).
-Später: eine CsiFrameSource-Klasse mit derselben Schnittstelle,
-die auf dem RV1106/Duo-S das CSI-Device ausliest (z.B. über
-V4L2 / /dev/videoX). Der Rest der Pipeline muss dafür nicht
-angepasst werden, solange get_frame() weiterhin ein (ok, frame)
-Tupel liefert.
+Currently: video file or webcam (for development without hardware).
+Later: a CsiFrameSource class with the same interface that reads the
+CSI device on the RV1106/Duo-S (e.g. via V4L2 / /dev/videoX). The rest
+of the app does not need to change as long as get_frame() keeps
+returning an (ok, frame) tuple.
 """
 
 from abc import ABC, abstractmethod
@@ -30,11 +29,11 @@ def to_grayscale(frame):
 
 
 class FrameSource(ABC):
-    """Gemeinsame Schnittstelle für alle Bildquellen."""
+    """Common interface for all frame sources."""
 
     @abstractmethod
     def get_frame(self):
-        """Liefert (ok: bool, frame: zweidimensionales Graubild | None)."""
+        """Return (ok: bool, frame: 2D grayscale image | None)."""
         raise NotImplementedError
 
     def release(self):
@@ -42,14 +41,14 @@ class FrameSource(ABC):
 
 
 class VideoFileSource(FrameSource):
-    """Liest Frames aus einer Videodatei (z.B. Wildlife-Datensatz-Clip)."""
+    """Reads frames from a video file (e.g. a wildlife dataset clip)."""
 
     def __init__(self, path: str, loop: bool = True):
         self.path = path
         self.loop = loop
         self.cap = cv2.VideoCapture(path)
         if not self.cap.isOpened():
-            raise FileNotFoundError(f"Videodatei konnte nicht geöffnet werden: {path}")
+            raise FileNotFoundError(f"Could not open video file: {path}")
         fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.fps = fps if math.isfinite(fps) and fps > 0 else 30.0
 
@@ -67,12 +66,12 @@ class VideoFileSource(FrameSource):
 
 
 class WebcamSource(FrameSource):
-    """Liest Frames von einer lokalen Webcam (Index, meist 0)."""
+    """Reads frames from a local webcam (index, usually 0)."""
 
     def __init__(self, index: int = 0):
         self.cap = cv2.VideoCapture(index)
         if not self.cap.isOpened():
-            raise RuntimeError(f"Webcam mit Index {index} konnte nicht geöffnet werden")
+            raise RuntimeError(f"Could not open webcam with index {index}")
 
     def get_frame(self):
         ok, frame = self.cap.read()
@@ -86,9 +85,8 @@ class WebcamSource(FrameSource):
 
 class SyntheticMotionSource(FrameSource):
     """
-    Erzeugt synthetische Wildlife-Frames mit einem transparenten Sprite,
-    einem langsam wechselnden Tages-/Nachthintergrund und einer Bewegung,
-    die das Bild vollständig verlassen kann.
+    Generates synthetic wildlife frames with a transparent sprite, a slowly
+    changing day/night background and motion that may leave the frame.
     """
 
     def __init__(self, width=640, height=480, speed=6, sprite_path=None):
@@ -134,7 +132,7 @@ class SyntheticMotionSource(FrameSource):
         if sprite_path:
             sprite = cv2.imread(sprite_path, cv2.IMREAD_UNCHANGED)
             if sprite is None:
-                raise FileNotFoundError(f"Sprite konnte nicht geöffnet werden: {sprite_path}")
+                raise FileNotFoundError(f"Could not open sprite: {sprite_path}")
             if sprite.ndim == 2:
                 sprite = cv2.cvtColor(sprite, cv2.COLOR_GRAY2BGRA)
             elif sprite.shape[2] == 3:
@@ -236,7 +234,7 @@ class SyntheticMotionSource(FrameSource):
 
 
 def create_source(kind: str, **kwargs) -> FrameSource:
-    """Kleine Factory, um die Quelle über einen String/Config-Wert zu wählen."""
+    """Small factory to pick the source via a string/config value."""
     if kind == "video_file":
         return VideoFileSource(kwargs["path"], loop=kwargs.get("loop", True))
     if kind == "webcam":
@@ -244,4 +242,4 @@ def create_source(kind: str, **kwargs) -> FrameSource:
     if kind == "synthetic":
         allowed = {"width", "height", "speed", "sprite_path"}
         return SyntheticMotionSource(**{k: v for k, v in kwargs.items() if k in allowed})
-    raise ValueError(f"Unbekannte Quelle: {kind}")
+    raise ValueError(f"Unknown source: {kind}")

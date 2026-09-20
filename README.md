@@ -1,118 +1,105 @@
-# Wildlife-Erkennungspipeline (Prototyp)
+# Wildlife Turret (prototype)
 
-Grundgerüst für Bewegungserkennung -> einmalige KI-Klassifikation ->
-Tracking, entwickelbar am PC mit simulierten Bildern, bevor die
-RV1106-Kamera-Hardware verfügbar ist.
+Single app: video input -> motion detection -> one-shot classification ->
+tracking -> aiming of a (simulated) pan/tilt head, developed on the PC with
+simulated/video frames before the RV1106 camera hardware is available.
 
 ## Installation
 
 ```bash
-pip install opencv-python numpy --break-system-packages
+pip install opencv-python numpy
 ```
 
-## Starten
-
-Mit rein synthetischen Testbildern (kein Video/Kamera nötig):
-```bash
-python pipeline.py --source synthetic
-```
-
-Die synthetische Quelle verwendet standardmäßig eine einfache Tier-Silhouette.
-Ein eigenes Bild kann als Sprite verwendet werden (für saubere Kanten am besten
-ein PNG mit transparentem Hintergrund):
-```bash
-python pipeline.py --source synthetic --sprite pfad/zum/tier.png
-```
-Das Sprite wird gespiegelt, gedreht und abhängig von seiner Höhe im Bild
-skaliert. Es kann den Bildrand vollständig verlassen. Der Hintergrund verändert
-Helligkeit und Farbe langsam in mehreren Bereichen und durchläuft einen
-Tages-/Nachtzyklus.
-
-Mit einer Videodatei (z.B. heruntergeladener Wildlife-Kamerafallen-Clip):
-```bash
-python pipeline.py --source video_file --path pfad/zum/clip.mp4
-```
-
-Die Videowiedergabe verwendet die FPS-Metadaten der Datei und berücksichtigt
-Dekodierung und Verarbeitung bei der Wartezeit. Bei ungültigen FPS-Metadaten
-werden 30 FPS verwendet. Ist die Verarbeitung langsamer als das Frameintervall,
-läuft die Wiedergabe langsamer; Frames werden nicht übersprungen. Die Zeitsteuerung
-ist durch die GUI-/Betriebssystem-Timer begrenzt und verwendet bei Videos mit
-variabler Framerate die gemeldete nominale Framerate.
-
-Bewegungsbereiche werden zwischen `--min-area` und `--max-area` akzeptiert.
-Große Hintergrundänderungen oberhalb von `--max-area` werden nicht getrackt.
-
-Mit der Webcam am PC:
-```bash
-python pipeline.py --source webcam --index 0
-```
-
-Alle Bildquellen liefern Graustufenbilder. Bewegungserkennung, Klassifikation
-und Tracking arbeiten ausschließlich auf unveränderten Graustufenbildern.
-Nur die Anzeige verwendet eine separate BGR-Kopie: Boxen und Beschriftungen
-bleiben farbig; `--show-motion-mask` zeigt Bewegungspixel in Rot.
-
-Unter dem Video stehen drei getrennte Statuszeilen:
-- **MOTION (blau):** Anzahl der gefilterten Bewegungsregionen oder der Hinweis,
-  dass die Erkennung während des Trackings übersprungen wurde. Boxen: `MOTION #n`.
-- **TRACKER (gelb):** idle, started, tracking, lost oder nach Ablehnung gestoppt.
-  Boxen: `TRACKER: label`.
-- **CLASSIFICATION (MOCK, grün/rot):** letztes Label, Konfidenz und Annahme/Ablehnung.
-  Frische Ergebnisse zeigen die Anzahl klassifizierter Ausschnitte; ältere Ergebnisse
-  sind ausdrücklich mit ihrem Alter in Frames markiert. `CLASSIFY`-Boxen zeigen die
-  tatsächlich klassifizierten Ausschnitte nur auf dem jeweiligen Frame.
-
-Der Klassifikator bleibt ein regelbasierter Mock, kein trainiertes KI-Modell.
-Die Anzeige löst keine zusätzlichen Klassifikationen oder Bewegungserkennungen aus.
-
-Taste `q` beendet die Anzeige.
-
-## Struktur
-
-- `frame_source.py` – austauschbare Bildquelle (Datei/Webcam/synthetisch,
-  später CSI-Kamera über dieselbe Schnittstelle).
-- `motion_detector.py` – MOG2-Bewegungserkennung, liefert Bounding-Boxes.
-- `classifier.py` – Klassifikations-Schnittstelle. `MockClassifier` ist
-  ein Platzhalter ohne echtes Modell. `RknnClassifier` ist als Gerüst für
-  die spätere NPU-Klassifikation vorbereitet (RKNN-Toolkit2).
-- `tracker.py` – KCF-Tracking nach bestätigter Klassifikation, mit
-  periodischer Re-Klassifikation.
-- `pipeline.py` – verbindet alles, Kommandozeilen-Einstiegspunkt.
-- `tests/` – Unit-Tests für Pipeline und Turm, gestartet mit
-  `python -m unittest discover` aus dem Projektverzeichnis.
-
-## Nächste Schritte
-
-1. Echte Wildlife-Videos/Bilder als Testmaterial einbinden
-   (z.B. LILA-BC-Datensatz) statt nur `synthetic`.
-2. Ein kleines Klassifikationsmodell trainieren, `MockClassifier`
-   durch ein echtes (zunächst noch PC-seitiges TensorFlow/TFLite-
-   Modell) ersetzen.
-3. Sobald ein `.rknn`-Modell vorliegt: `RknnClassifier` implementieren,
-   `pipeline.py` unverändert lassen (nur den Classifier austauschen).
-4. Sobald die CSI-Kamera verfügbar ist: `CsiFrameSource` in
-   `frame_source.py` ergänzen, restliche Pipeline bleibt unverändert.
-
-## Water turret (cat deterrent)
-
-The repository also contains the software structure for an automatic water
-turret that aims at cats in the garden. The decision layer is implemented and
-unit tested; camera, tracking, servo and pump wiring follow in the next phase.
-
-- `state_machine.py` – states, events, transitions and state timeouts.
-- `safety.py` – arming, spray zone, cooldown, spray budgets, time window,
-  emergency stop.
-- `turret_config.py` – all parameters as dataclasses, readable and writable as
-  UTF-8 JSON.
-- `tests/test_state_machine.py`, `tests/test_safety.py`, `tests/test_turret_config.py` – 87 tests.
-- `TURRET.md` – architecture, state diagram, transition table, safety rules and
-  the planned interfaces of the next phase.
+## Running
 
 ```bash
-python state_machine.py        # prints the transition and timeout tables
-python -m unittest discover -v # pipeline tests + turret tests
+python turret.py                             # reads config.json (defaults if missing)
+python turret.py --config config.json        # explicit config file
+python turret.py --calibration calibration.json
 ```
 
-The turret is disarmed by default: it neither aims nor sprays until it is armed
-on purpose.
+The window shows the video with the tracked target box and a status row
+(label, confidence, confirmation count, aim error, head position). Press `q`
+to quit.
+
+### config.json (video input and perception)
+
+Hand-edited, never written by the app. Unknown keys are rejected:
+
+```json
+{
+  "video": {
+    "source": "video_file",      // video_file | webcam | synthetic
+    "path": "video/youtube.mp4", // required for video_file
+    "webcam_index": 0,           // used for webcam
+    "sprite": null,              // transparent PNG/JPG for synthetic
+    "loop": true,
+    "show_motion": true          // tint detected motion pixels red
+  },
+  "perception": {
+    "min_area": 1200,            // smallest accepted motion region (px)
+    "max_area": 50000,           // largest accepted motion region (px)
+    "min_animal_area": 1500,     // crop area the mock classifier accepts
+    "reclassify_every": 60,      // tracker re-classification interval (frames)
+    "downscale_width": 320       // motion detection width (0 = full resolution;
+                                 // keep small for high-res cameras: RAM of the MOG2
+                                 // model scales with pixels, ~66 bytes/px grey)
+  }
+}
+```
+
+All sources deliver grayscale frames; motion detection, classification and
+tracking work on unchanged grayscale images, only the display converts to
+colour. During the warm-up phase (the first `history` frames of the motion
+detector, default 500 ≈ 17 s at 30 FPS) the background model is trained but
+no detection results are produced - the status row shows the progress.
+
+The video playback uses the FPS metadata of the file and accounts for
+decoding and processing time in the wait. With invalid FPS metadata 30 FPS
+are used. If processing is slower than the frame interval, playback runs
+slower; frames are never skipped.
+
+### calibration.json (camera and servo data)
+
+Hand-edited, never written by the app: pan/tilt soft limits and centre,
+servo speed, camera field of view (h/v) and the aim tolerance. If the file
+is missing, the built-in defaults are used. Values:
+
+| Key | Meaning |
+| --- | --- |
+| `pan_center`, `tilt_center` | neutral position (degrees) |
+| `pan_limits`, `tilt_limits` | soft limits the head never leaves |
+| `deg_per_s` | maximum servo speed, caps the aim rate |
+| `hfov_deg`, `vfov_deg` | horizontal/vertical field of view |
+| `aim_tolerance_px` | how close (pixels) counts as "aimed" |
+| `settle_frames` | consecutive frames inside tolerance before aiming counts as settled |
+| `warmup_frames` | frames to feed a motion model before searching (used by the calibrator) |
+
+## Structure
+
+- `turret.py` – the single entry point: builds everything from the JSON files and runs the frame loop with display.
+- `frame_source.py` – interchangeable frame sources (file/webcam/synthetic, later CSI camera via the same interface).
+- `motion_detector.py` – MOG2 motion detection, returns bounding boxes.
+- `classifier.py` – classification interface. `MockClassifier` and `MockCatClassifier` are placeholders without a real model. `RknnClassifier` is the scaffold for the later NPU classification (RKNN-Toolkit2).
+- `tracker.py` – KCF tracking after a confirmed classification, with periodic re-classification.
+- `target_detector.py` – motion -> confirmed target (`CatTargetDetector`), one target at a time.
+- `aim_controller.py` – pixels -> pan/tilt angles, rate limited, deadband, settle counting.
+- `calibration.py` – camera geometry and servo data plus the `Calibrator` procedure (warm-up, limit sweep).
+- `hardware.py` – actuator interfaces, simulated devices and the (not yet implemented) serial/GPIO drivers.
+- `turret_config.py` – `AppConfig` with `video` and `perception` sections, loaded from `config.json`.
+- `config.json` – video input and perception configuration (hand-edited).
+- `calibration.json` – default calibration data (hand-edited).
+- `tests/` – unit tests, run with `python -m unittest discover` from the project directory.
+
+## Next steps
+
+1. Use real wildlife videos/images as test material (e.g. the LILA-BC dataset)
+   instead of only `synthetic`.
+2. Train a small classification model and replace the mock classifiers
+   (initially PC-side TensorFlow/TFLite).
+3. Once a `.rknn` model exists: implement `RknnClassifier`, `turret.py`
+   stays unchanged (only the classifier is swapped).
+4. Once the CSI camera is available: add `CsiFrameSource` to
+   `frame_source.py`; the rest of the app stays unchanged.
+5. Re-introduce a safety layer (arming, spray zone, budgets) before any real
+   water is connected.

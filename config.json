@@ -1,0 +1,17 @@
+{
+  "video": {
+    "source": "video_file",
+    "path": "video/youtube-short.mp4",
+    "webcam_index": 0,
+    "sprite": null,
+    "loop": true,
+    "show_motion": true
+  },
+  "perception": {
+    "min_area": 1200,
+    "max_area": 50000,
+    "min_animal_area": 1500,
+    "reclassify_every": 60,
+    "downscale_width": 640
+  }
+}
