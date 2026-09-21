@@ -11,6 +11,42 @@ import json
 from pathlib import Path
 
 
+def load_jsonc(text: str) -> dict:
+    """Parse JSON that may contain //, /* */ and # comments.
+
+    Comment markers inside strings are kept. Raises json.JSONDecodeError
+    on invalid input after comment stripping.
+    """
+    out_lines = []
+    in_block = False
+    for line in text.splitlines():
+        out, in_str, i = [], False, 0
+        while i < len(line):
+            if in_block:
+                end = line.find("*/", i)
+                if end == -1:
+                    i = len(line)
+                else:
+                    in_block = False
+                    i = end + 2
+                continue
+            ch = line[i]
+            if ch == '"' and (i == 0 or line[i - 1] != "\\"):
+                in_str = not in_str
+            if not in_str and ch == "#":
+                break
+            if not in_str and line[i:i + 2] == "//":
+                break
+            if not in_str and line[i:i + 2] == "/*":
+                in_block = True
+                i += 2
+                continue
+            out.append(ch)
+            i += 1
+        out_lines.append("".join(out))
+    return json.loads("\n".join(out_lines))
+
+
 def reject_unknown_keys(section: str, data: dict, dataclass_type) -> None:
     """Raise ValueError when ``data`` contains keys the dataclass does not know."""
     if not isinstance(data, dict):
@@ -110,5 +146,5 @@ class AppConfig:
 
     @classmethod
     def load(cls, path) -> "AppConfig":
-        """Read a config from a UTF-8 JSON file (json.JSONDecodeError on bad input)."""
-        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+        """Read a config from a UTF-8 JSON file; //, /* */ and # comments allowed."""
+        return cls.from_dict(load_jsonc(Path(path).read_text(encoding="utf-8")))

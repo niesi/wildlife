@@ -7,7 +7,7 @@ from ultralytics import YOLO
 
 class YoloDetector:
     def __init__(self, model_path="yolo11n.pt", conf=0.4, classes=None,
-                 device=None, imgsz=640, warmup_frames=1, verbose=False):
+                 device=None, imgsz=1280, warmup_frames=1, verbose=False):
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = YOLO(model_path)
         self.conf = conf

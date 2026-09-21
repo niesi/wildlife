@@ -9,6 +9,10 @@
   },
   "perception": {
     "detector": "yolo",
+    "yolo_model": "yolo11s.pt",
+    "yolo_conf": 0.2,
+    #"imgsz": 1280   // in config, YoloDetector-Parameter durchreichen
+    #"yolo_classes": [15],
     "min_area": 1200,
     "max_area": 50000,
     "min_animal_area": 1500,
