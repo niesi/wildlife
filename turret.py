@@ -23,9 +23,11 @@ from classifier import MockCatClassifier
 from frame_source import create_source, to_grayscale
 from hardware import SimulatedPanTilt
 from motion_detector import MotionDetector
+from yolo_detector import YoloDetector
 from target_detector import CatTargetDetector
 from tracker import AnimalTracker
 from turret_config import AppConfig
+
 
 TARGET_COLOR = (0, 220, 0)
 STATUS_COLOR = (255, 200, 120)
@@ -51,25 +53,30 @@ def draw_status(frame, status_text):
 
 
 def build(config, calibration):
-    """Create source, perception chain, aim controller and simulated head."""
     video = config.video
     source = create_source(video.source, path=video.path, index=video.webcam_index,
                            sprite_path=video.sprite, loop=video.loop)
-    motion = MotionDetector(min_area=config.perception.min_area,
-                            max_area=config.perception.max_area,
-                            downscale_width=config.perception.downscale_width)
+    perception = build_detector(config.perception)
     classifier = MockCatClassifier(min_area_for_cat=config.perception.min_animal_area)
     tracker = AnimalTracker(reclassify_interval_frames=config.perception.reclassify_every)
-    detector = CatTargetDetector(detector=motion, classifier=classifier, tracker=tracker)
+    detector = CatTargetDetector(detector=perception, classifier=classifier, tracker=tracker)
     aimer = AimController.from_calibration(calibration)
     head = SimulatedPanTilt(pan_limits=calibration.pan_limits,
                             tilt_limits=calibration.tilt_limits,
                             deg_per_s=calibration.deg_per_s)
-    return source, motion, detector, aimer, head
+    return source, perception, detector, aimer, head
+
+
+def build_detector(p):
+    if p.detector == "yolo":
+        return YoloDetector(model_path=p.yolo_model, conf=p.yolo_conf,
+                            classes=p.yolo_classes or None)
+    return MotionDetector(min_area=p.min_area, max_area=p.max_area,
+                          downscale_width=p.downscale_width)
 
 
 def run(config, calibration):
-    source, motion, detector, aimer, head = build(config, calibration)
+    source, perception, detector, aimer, head = build(config, calibration)
     playback_fps = source.fps if config.video.source == "video_file" else None
     last_frame_started = time.perf_counter()
     try:
@@ -89,9 +96,9 @@ def run(config, calibration):
 
             display = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
             if config.video.show_motion:
-                display = motion.overlay_motion_mask(display)
-            status = (f"warming up {motion.frames_seen}/{motion.warmup_frames}"
-                      if motion.warming_up else "no target")
+                display = perception.overlay_motion_mask(display)
+            status = (f"warming up {perception.frames_seen}/{perception.warmup_frames}"
+                      if perception.warming_up else "no target")
             if target is not None:
                 aim = aimer.error(target.center, frame.shape)
                 command = aimer.command(aim, head.position(), dt_s)

@@ -53,11 +53,15 @@ class VideoConfig:
 class PerceptionConfig:
     """Motion detection, classification and tracking thresholds."""
 
-    min_area: int = 1200               # smallest accepted motion region (px)
-    max_area: int = 50000              # largest accepted motion region (px)
-    min_animal_area: int = 1500        # crop area the mock classifier accepts
-    reclassify_every: int = 60         # tracker re-classification interval (frames)
-    downscale_width: int = 320         # motion is detected at this width (0 = full resolution)
+    min_area: int = 1200
+    max_area: int = 50000
+    downscale_width: int = 320
+    min_animal_area: int = 8000
+    reclassify_every: int = 15
+    detector: str = "motion"                       # "motion" | "yolo"
+    yolo_model: str = "yolo11n.pt"
+    yolo_conf: float = 0.4
+    yolo_classes: list = field(default_factory=lambda: [0])  # COCO: person
 
     def __post_init__(self):
         for name in ("min_area", "max_area", "min_animal_area"):
